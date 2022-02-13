@@ -9,6 +9,11 @@ Behavior based on Probot Stale.
 2. Install via `pip install git+https://github.com/treytabner/stale-issues.git`.
 3. Run `stale-issues --help` to see command line options.
 
+You must set the environment variable `GITHUB_TOKEN` to a valid Github personal
+access token.  The repo format is `username/repo` or `organization/repo`.
+
+## Template
+
 ```yml
 # Number of days of inactivity before an Issue or Pull Request becomes stale
 daysUntilStale: 60
