@@ -36,7 +36,7 @@ def get_args():
 
     parser.add_argument('repo', help="Repo to manage")
     parser.add_argument('--base-url', default='api.github.com',
-                        help="Github API URL")
+                        help="Github API URL, defaults to api.github.com")
     parser.add_argument('--dry-run', action='store_const', const=True,
                         help="Just show what would happen")
 
@@ -100,7 +100,8 @@ class Stale():
             return
 
         processed = 0
-        issues = self.repo.get_issues(state='open', sort='updated-asc')
+        issues = self.repo.get_issues(state='open', sort='updated-asc',
+                                      labels=self.config.get('onlyLabels', []))
         for issue in issues:
             if (self.config.get('limitPerRun') and
                     processed >= self.config.get('limitPerRun')):
@@ -114,71 +115,80 @@ class Stale():
             if self.process_issue(issue):
                 processed += 1
 
+    def stale_path(self, issue):
+        """
+        Process already-stale issue
+        """
+        logger.info("Issue %d is stale!", issue.number)
+        until_close = self.config.get('daysUntilClose')
+        close_date = datetime.utcnow() - timedelta(days=until_close)
+        logger.debug("Close stale if older than: %s", close_date.isoformat())
+
+        last_comment = issue.get_comments().reversed[0]
+        if last_comment.body == self.config.get('markComment',
+                                                DEFAULT_MARK_COMMENT):
+            # check date and possibly close
+            if last_comment.updated_at < close_date:
+                if self.config.get('closeComment'):
+                    logger.info("Adding close comment to issue %d",
+                                issue.number)
+                    if not self.args.dry_run:
+                        issue.create_comment(
+                            self.config.get('closeComment'))
+                logger.info("Closing issue %d", issue.number)
+                if self.config.get('closeComment'):
+                    issue.create_comment(self.config.get('closeComment'))
+                if not self.args.dry_run:
+                    issue.edit(state='closed')
+                return True
+
+            logger.info("Issue %d is not stale enough", issue.number)
+            logger.debug("Last comment at: %s",
+                         last_comment.updated_at.isoformat())
+            logger.debug("Would be able to close in %s hours",
+                         issue.updated_at - close_date)
+
+        else:
+            logger.info("New comment found, on issue %d, "
+                        "removing stale label", issue.number)
+            if not self.args.dry_run:
+                logger.info("Removing stale label from issue %d",
+                            issue.number)
+                issue.remove_from_labels(
+                    self.config.get('staleLabel', 'stale'))
+                if self.config.get('unmarkComment'):
+                    issue.create_comment(self.config.get('unmarkComment'))
+            return True
+
+        return False
+
     def process_issue(self, issue):
         """
         Process a specific issue by checking for activity and staleness
         """
         logger.info("Processing %s (%s)", issue.number, issue.title)
+        logger.debug("Current time: %s", datetime.utcnow().isoformat())
 
         until_stale = self.config.get('daysUntilStale')
-        until_close = self.config.get('daysUntilClose')
         stale_date = datetime.utcnow() - timedelta(days=until_stale)
-        close_date = datetime.utcnow() - timedelta(days=until_close)
-
-        logger.debug("Current time: %s", datetime.utcnow().isoformat())
         logger.debug("Stale if olders than: %s", stale_date.isoformat())
-        logger.debug("Close stale if older than: %s", close_date.isoformat())
 
         label_issues = [label.name for label in issue.labels]
         if self.config.get('staleLabel', 'stale') in label_issues:
-            logger.info("Issue %d is stale!", issue.number)
-            last_comment = issue.get_comments().reversed[0]
+            return self.stale_path(issue)
 
-            if last_comment.body == self.config.get('markComment',
-                                                    DEFAULT_MARK_COMMENT):
-                # check date and possibly close
-                if last_comment.updated_at < close_date:
-                    if self.config.get('closeComment'):
-                        logger.info("Adding close comment to issue %d",
-                                    issue.number)
-                        if not self.args.dry_run:
-                            issue.create_comment(
-                                self.config.get('closeComment'))
-                    logger.info("Closing issue %d", issue.number)
-                    if not self.args.dry_run:
-                        issue.edit(state='closed')
-                    return True
+        logger.debug("Last update at %s", issue.updated_at.isoformat())
+        logger.debug("Would be stale in %s hours",
+                     issue.updated_at - stale_date)
+        if issue.updated_at < stale_date:
+            logger.info("Marking issue %d stale", issue.number)
+            if not self.args.dry_run:
+                issue.add_to_labels(self.config.get('staleLabel', 'stale'))
+                issue.create_comment(self.config.get('markComment',
+                                     DEFAULT_MARK_COMMENT))
+            return True
 
-                logger.info("Issue %d is not stale enough", issue.number)
-                logger.debug("Last comment at: %s",
-                             last_comment.updated_at.isoformat())
-                logger.debug("Would be able to close in %s hours",
-                             issue.updated_at - close_date)
-
-            else:
-                logger.info("New comment found, on issue %d, "
-                            "removing stale label", issue.number)
-                if not self.args.dry_run:
-                    logger.info("Removing stale label from issue %d",
-                                issue.number)
-                    issue.remove_from_labels(
-                        self.config.get('staleLabel', 'stale'))
-                return True
-
-        else:
-            logger.debug("Last update at %s", issue.updated_at.isoformat())
-            logger.debug("Would be stale in %s hours",
-                         issue.updated_at - stale_date)
-            if issue.updated_at < stale_date:
-                logger.info("Marking issue %d stale", issue.number)
-                if not self.args.dry_run:
-                    issue.add_to_labels(self.config.get('staleLabel', 'stale'))
-                    issue.create_comment(self.config.get('markComment',
-                                         DEFAULT_MARK_COMMENT))
-                return True
-
-            logger.info("Issue %d has recent activity, skipping", issue.number)
-
+        logger.info("Issue %d has recent activity, skipping", issue.number)
         return False
 
 
