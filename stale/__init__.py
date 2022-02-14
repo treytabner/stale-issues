@@ -91,14 +91,6 @@ class Stale():
         """
         Fetch eligible issues and start processing
         """
-        until_stale = self.config.get('daysUntilStale')
-        until_close = self.config.get('daysUntilClose')
-
-        if not all([until_stale, until_close]):
-            logger.error(
-                "Specify both daysUntilStale and daysUntilClose in stale.yaml")
-            return
-
         processed = 0
         issues = self.repo.get_issues(state='open', sort='updated-asc',
                                       labels=self.config.get('onlyLabels', []))
@@ -121,8 +113,12 @@ class Stale():
         """
         logger.info("Issue %d is stale!", issue.number)
         until_close = self.config.get('daysUntilClose')
-        close_date = datetime.utcnow() - timedelta(days=until_close)
-        logger.debug("Close stale if older than: %s", close_date.isoformat())
+        if until_close:
+            close_date = datetime.utcnow() - timedelta(days=until_close)
+            logger.debug("Close stale if older than: %s",
+                         close_date.isoformat())
+        else:
+            return False
 
         last_comment = issue.get_comments().reversed[0]
         if last_comment.body == self.config.get('markComment',
@@ -169,7 +165,7 @@ class Stale():
         logger.info("Processing %s (%s)", issue.number, issue.title)
         logger.debug("Current time: %s", datetime.utcnow().isoformat())
 
-        until_stale = self.config.get('daysUntilStale')
+        until_stale = self.config.get('daysUntilStale', 60)
         stale_date = datetime.utcnow() - timedelta(days=until_stale)
         logger.debug("Stale if olders than: %s", stale_date.isoformat())
 
