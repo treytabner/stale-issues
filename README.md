@@ -15,17 +15,18 @@ access token.  The repo format is `username/repo` or `organization/repo`.
 ## Template
 
 ```yml
-# Number of days of inactivity before an Issue or Pull Request becomes stale
+# Number of days of inactivity before an Issue becomes stale
 daysUntilStale: 60
 
-# Number of days of inactivity before an Issue or Pull Request with the stale label is closed.
-# Set to false to disable. If disabled, issues still need to be closed manually, but will remain marked as stale.
+# Number of days of inactivity before an Issue with the stale label is closed.
+# Set to false to disable. If disabled, issues still need to be closed manually,
+# but will remain marked as stale.
 daysUntilClose: 7
 
-# Only issues or pull requests with all of these labels are check if stale. Defaults to `[]` (disabled)
+# Only Issues with all of these labels are check if stale. Defaults to `[]` (disabled)
 onlyLabels: []
 
-# Issues or Pull Requests with these labels will never be considered stale. Set to `[]` to disable
+# Issues with these labels will never be considered stale. Set to `[]` to disable
 exemptLabels:
   - compliance
   - security
@@ -48,7 +49,7 @@ markComment: >
 # unmarkComment: >
 #   Your comment here.
 
-# Comment to post when closing a stale Issue or Pull Request.
+# Comment to post when closing a stale Issue.
 # closeComment: >
 #   Your comment here.
 
